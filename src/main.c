@@ -7,7 +7,7 @@
 // TODO: get this programatically
 #define THREAD_COUNT 8u
 #define ARRAY_COUNT (THREAD_COUNT * 1000u * 10u)
-#define JOB_COUNT (ARRAY_COUNT / THREAD_COUNT)
+#define JOB_COUNT (ARRAY_COUNT / 1000u)
 
 typedef struct sJobParams {
     uint32_t write_to_idx;
@@ -29,8 +29,6 @@ void Job_sum_func(const void* read_only, void* read_write, JS_sThread* curr_thre
 }
 
 int main() {
-    printf("Its been a while");
-
     uint32_t base_values[ARRAY_COUNT];
     uint32_t results[JOB_COUNT];
     sJobParams params[JOB_COUNT];
@@ -69,7 +67,7 @@ int main() {
         result += results[i];
     }
 
-    printf("Result: %d", result);
+    printf("Result: %d from %d jobs in %d", result, JOB_COUNT, THREAD_COUNT);
 
     JS_ThreadPool_clean(&job_pool);
 

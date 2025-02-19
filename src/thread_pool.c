@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <stdbool.h>
 
 #include "threads_include.h"
@@ -57,6 +58,8 @@ void JS_Thread_run(JS_sThread *thread) {
 void JS_ThreadPool_init(JS_sThreadPool *pool, const uint8_t thread_count) {
     pool->threads = (JS_sThread*) malloc(sizeof(JS_sThread) * thread_count);
 
+    pool->thread_count = thread_count;
+
     pool->os_thread_idx  = (thrd_t*) malloc(sizeof(thrd_t) * thread_count);
 
     for(uint8_t i = 0u; i < thread_count; i++) {
@@ -93,13 +96,14 @@ int start_thread(void * data) {
 void JS_ThreadPool_launch(JS_sThreadPool *pool) {
     assert(pool > 0u && "Error: launching on empty thread pool");
 
+
     thrd_t *os_threads = (thrd_t*) pool->os_thread_idx;
     for(uint8_t i = 1u; i < pool->thread_count; i++) {
         thrd_create(&os_threads[i], start_thread, &pool->threads[i]);
     }
 
     // Using current thread as the first thread
-    JS_Thread_run(pool->threads);
+    JS_Thread_run(&pool->threads[0]);
 }
 
 void JS_ThreadPool_wait_for(JS_sThreadPool *pool) {
