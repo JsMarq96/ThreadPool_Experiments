@@ -15,7 +15,7 @@ typedef struct sJobParams {
     uint32_t *values;
 } sJobParams;
 
-void Job_sum_func(const void* read_only, void* read_write, JS_sThread* curr_thread) {
+static void Job_sum_func(const void* read_only, void* read_write, JS_sThread* curr_thread) {
     const sJobParams *params = read_only;
     const uint32_t *values = params->values;
     const uint32_t starting_idx = params->startin_idx;
@@ -30,7 +30,7 @@ void Job_sum_func(const void* read_only, void* read_write, JS_sThread* curr_thre
 
 int main() {
     uint32_t base_values[ARRAY_COUNT];
-    uint32_t results[JOB_COUNT];
+    volatile uint32_t results[JOB_COUNT];
     sJobParams params[JOB_COUNT];
 
     // Prepare the problem
@@ -45,16 +45,16 @@ int main() {
         params[i] = (sJobParams){
             .write_to_idx = i,
             .startin_idx = i * 1000u,
-            .values = base_values
+            .values = base_values,
         };
 
         JS_ThreadPool_submit_job(&job_pool, 
                                 (JS_sJobConfig) {
                                     .has_parent = false,
-                                    .job_func = Job_sum_func,
+                                    .job_func = &Job_sum_func,
                                     .read_only_data = (void*) &params[i],
                                     .read_write_data = (void*) results,
-                                    .parent_job_config = NULL
+                                    .parent_job_config = NULL,
                                 });
     }
 
@@ -64,10 +64,11 @@ int main() {
     uint32_t result = 0u;
 
     for(uint32_t i = 0u; i < JOB_COUNT; i++) {
+        //printf("%d\n", results[i]); <- uncommeting this fixes it :(
         result += results[i];
     }
 
-    printf("Result: %d from %d jobs in %d", result, JOB_COUNT, THREAD_COUNT);
+    printf("Result: %d / %d from %d jobs in %d", result, ARRAY_COUNT, JOB_COUNT, THREAD_COUNT);
 
     JS_ThreadPool_clean(&job_pool);
 

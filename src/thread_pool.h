@@ -22,7 +22,7 @@ typedef void (*JS_sJobFunction) (const void*, void*, struct JS_sThread*);
 
 typedef struct JS_sJobConfig {
     bool                    has_parent;
-    JS_sJobFunction         *job_func;
+    JS_sJobFunction         job_func;
     const void              *read_only_data;
     void                    *read_write_data;
     struct JS_sJobConfig    *parent_job_config;

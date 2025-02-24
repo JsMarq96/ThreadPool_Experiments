@@ -18,31 +18,32 @@ bool JS_JobQueue_pop(JS_sJobQueue *queue, JS_sJob **result) {
         return false; // Empty queue
     }
 
-    const int16_t new_top = (queue->top_idx - 1u) % MAX_JOB_COUNT_PER_THREAD;
-    *result = &queue->queue_ring_buffer[new_top];
-    queue->top_idx = new_top;
+    *result = &queue->queue_ring_buffer[queue->bottom_idx];
+    queue->bottom_idx = (queue->bottom_idx + 1u) % MAX_JOB_COUNT_PER_THREAD;
 
     return true;
 }
 
 void JS_JobQueue_enqueue(JS_sJobQueue *queue, const JS_sJob new_job) {
-    memcpy(queue->queue_ring_buffer + queue->bottom_idx, &new_job, sizeof(JS_sJob));
-    queue->bottom_idx = (queue->bottom_idx + 1u) % MAX_JOB_COUNT_PER_THREAD;
+    memcpy(&queue->queue_ring_buffer[queue->top_idx], &new_job, sizeof(JS_sJob));
+    queue->top_idx = (queue->top_idx + 1u) % MAX_JOB_COUNT_PER_THREAD;
 }
 
 uint32_t JS_JobQueue_get_size(JS_sJobQueue *queue) {
-    return queue->bottom_idx - queue->top_idx;
+    return abs(queue->bottom_idx - queue->top_idx);
 }
 
 // THREAD FUNCTIONS ===================================
 // Thread main loop
 void JS_Thread_run(JS_sThread *thread) {
     JS_sJobQueue *thread_job_queue = &thread->job_queue;
-    
+
     // While the Queue is not empty
     JS_sJob *current_job = NULL;
-    while(thread_job_queue->bottom_idx != thread_job_queue->top_idx) {
-        JS_JobQueue_pop(thread_job_queue, &current_job);
+    while(JS_JobQueue_get_size(thread_job_queue) != 0u) {
+        if (!JS_JobQueue_pop(thread_job_queue, &current_job)) {
+            continue;
+        }
 
         // TODO: send context and other params
         current_job->job_func(current_job->read_only_data, current_job->read_write_data, thread);
@@ -52,6 +53,8 @@ void JS_Thread_run(JS_sThread *thread) {
             //JS_JobQueue_enqueue(thread_job_queue, current_job->parent);
         }
     }
+
+    printf("End");
 }
 
 // THREAD POOL ======================================
@@ -77,9 +80,9 @@ void JS_ThreadPool_submit_job(JS_sThreadPool *pool, JS_sJobConfig job_data) {
         if (JS_JobQueue_get_size(&threads[i].job_queue) <= JS_JobQueue_get_size(&threads[i_next].job_queue)) {
             JS_JobQueue_enqueue(&threads[i].job_queue, 
                                 (JS_sJob) {
-                                    .job_func = job_data.job_func,
+                                    .job_func = *job_data.job_func,
                                     .read_only_data = job_data.read_only_data,
-                                    .read_write_data = job_data.read_write_data
+                                    .read_write_data = job_data.read_write_data,
                                 });
 
             return;
@@ -89,17 +92,16 @@ void JS_ThreadPool_submit_job(JS_sThreadPool *pool, JS_sJobConfig job_data) {
 
 int start_thread(void * data) {
     JS_Thread_run((JS_sThread*) data);
-
     return 0u;
 }
 
 void JS_ThreadPool_launch(JS_sThreadPool *pool) {
     assert(pool > 0u && "Error: launching on empty thread pool");
 
-
     thrd_t *os_threads = (thrd_t*) pool->os_thread_idx;
     for(uint8_t i = 1u; i < pool->thread_count; i++) {
         thrd_create(&os_threads[i], start_thread, &pool->threads[i]);
+        //thrd_detach(&os_threads[i]);
     }
 
     // Using current thread as the first thread
@@ -111,7 +113,7 @@ void JS_ThreadPool_wait_for(JS_sThreadPool *pool) {
     thrd_t *os_threads = (thrd_t*) pool->os_thread_idx;
     int result;
     for(uint8_t i = 1u; i < pool->thread_count; i++) {
-        thrd_join(&os_threads[i], &result);
+        assert(thrd_join(&os_threads[i], &result) == 0u);
     }
 }
 
