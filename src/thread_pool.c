@@ -32,10 +32,10 @@ void JS_JobQueue_enqueue(JS_sJobQueue *queue, const JS_sJob new_job);
 uint32_t JS_JobQueue_get_size(JS_sJobQueue *queue);
 
 typedef struct JS_sThread {
-    uint32_t                thread_id;
     thrd_t                  thread_handle;
     JS_sJobQueue            job_queue;
     struct JS_sThreadPool   *pool;
+    uint8_t                 thread_id;
 } JS_sThread;
 
 void JS_Thread_run(JS_sThread *thread);
@@ -45,12 +45,12 @@ void JS_Thread_run(JS_sThread *thread);
 // IMPLEMENTATION
 
 // Job Queue functions ================================
-inline static void JS_JobQueue_init(JS_sJobQueue *queue) {
+inline void JS_JobQueue_init(JS_sJobQueue *queue) {
     queue->top_idx = 0u;
     queue->bottom_idx = 0u;
 }
 
-inline static bool JS_JobQueue_pop(JS_sJobQueue *queue, JS_sJob **result) {
+inline bool JS_JobQueue_pop(JS_sJobQueue *queue, JS_sJob **result) {
     if (queue->bottom_idx == queue->top_idx) {
         return false; // Empty queue
     }
@@ -61,18 +61,18 @@ inline static bool JS_JobQueue_pop(JS_sJobQueue *queue, JS_sJob **result) {
     return true;
 }
 
-inline static void JS_JobQueue_enqueue(JS_sJobQueue *queue, const JS_sJob new_job) {
+inline void JS_JobQueue_enqueue(JS_sJobQueue *queue, const JS_sJob new_job) {
     memcpy(&queue->queue_ring_buffer[queue->top_idx], &new_job, sizeof(JS_sJob));
     queue->top_idx = (queue->top_idx + 1u) % MAX_JOB_COUNT_PER_THREAD;
 }
 
-inline static uint32_t JS_JobQueue_get_size(JS_sJobQueue *queue) {
+inline uint32_t JS_JobQueue_get_size(JS_sJobQueue *queue) {
     return abs(queue->bottom_idx - queue->top_idx);
 }
 
 // THREAD FUNCTIONS ===================================
 // Thread main loop
-inline static void JS_Thread_run(JS_sThread *thread) {
+inline void JS_Thread_run(JS_sThread *thread) {
     JS_sJobQueue *thread_job_queue = &thread->job_queue;
 
     // While the Queue is not empty

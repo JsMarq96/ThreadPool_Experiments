@@ -37,7 +37,7 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic -Wextra")
 	endif()
 
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -v")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -v -wd5040")
 else()
 	message("Release config")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")

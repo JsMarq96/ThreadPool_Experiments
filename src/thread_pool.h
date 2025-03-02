@@ -18,16 +18,16 @@ struct JS_sThreadPool;
 typedef void (*JS_sJobFunction) (const void*, void*, struct JS_sThreadPool*, const uint8_t);
 
 typedef struct JS_sJobConfig {
-    bool                    has_parent;
     JS_sJobFunction         job_func;
     const void              *read_only_data;
     void                    *read_write_data;
     struct JS_sJobConfig    *parent_job_config;
+    bool                    has_parent;
 } JS_sJobConfig;
 
 typedef struct JS_sThreadPool {
-    uint8_t             thread_count;
     struct JS_sThread   *threads;
+    uint8_t             thread_count;
 } JS_sThreadPool;
 
 void JS_ThreadPool_init(JS_sThreadPool *pool, const uint8_t thread_count);
