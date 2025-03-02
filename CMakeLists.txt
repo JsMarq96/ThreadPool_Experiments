@@ -21,20 +21,35 @@ endmacro()
 ADD_SOURCE("src/")
 #ADD_SOURCE("src/utils")
 
-if(CMAKE_BUILD_TYPE MATCHES DEBUG)
+if(CMAKE_BUILD_TYPE MATCHES Debug)
     message("Debug config")
 	if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CLANG_TIME_TRACE)
-		message("Clang time trace enabled!")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftime-trace")
+		if (CLANG_TIME_TRACE)
+			message("Clang time trace enabled!")
+			set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftime-trace")
+		endif()
+
+		# Adress sanitizer is unsuported on windows
+		if (NOT WIN32)
+			set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=leak -fsanitize=address -fsanitize=thread")
+		endif()
+
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pedantic -Wextra")
 	endif()
-	set(CMAKE_C_FLAGS "-Wall -Wextra -g")
+
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -v")
 else()
 	message("Release config")
-	set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+
+	#if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+	#	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer")
+	#endif()
 endif()
 
 find_package(Threads REQUIRED)
 
+set(TINYCTHREAD_DISABLE_TESTS ON)
 add_subdirectory(libraries/tinycthread)
 
 add_executable(ThreadPoolExp ${HEADER_FILES} ${SOURCE_FILES})
