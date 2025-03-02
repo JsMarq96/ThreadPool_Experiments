@@ -15,7 +15,7 @@ typedef struct sJobParams {
     uint32_t *values;
 } sJobParams;
 
-static void Job_sum_func(const void* read_only, void* read_write, JS_sThread* curr_thread) {
+static void Job_sum_func(const void* read_only, void* read_write, struct JS_sThreadPool* pool, const uint8_t thread_id) {
     const sJobParams *params = read_only;
     const uint32_t *values = params->values;
     const uint32_t starting_idx = params->startin_idx;

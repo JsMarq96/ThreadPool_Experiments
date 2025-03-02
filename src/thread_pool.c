@@ -7,6 +7,40 @@
 
 #include "threads_include.h"
 
+// Forward declarations =================================
+struct JS_sJob;
+struct JS_sJobQueue;
+struct JS_sThread;
+struct JS_sThreadPool;
+
+typedef struct JS_sJob {
+    JS_sJobFunction job_func;
+    struct JS_sJob  *parent;
+    const void      *read_only_data;
+    void            *read_write_data;
+} JS_sJob;
+
+typedef struct JS_sJobQueue {
+    JS_sJob    queue_ring_buffer[MAX_JOB_COUNT_PER_THREAD];
+    int16_t    top_idx;
+    int16_t    bottom_idx;
+} JS_sJobQueue;
+
+void JS_JobQueue_init(JS_sJobQueue *queue);
+bool JS_JobQueue_pop(JS_sJobQueue *queue, JS_sJob **result);
+void JS_JobQueue_enqueue(JS_sJobQueue *queue, const JS_sJob new_job);
+uint32_t JS_JobQueue_get_size(JS_sJobQueue *queue);
+
+typedef struct JS_sThread {
+    uint32_t                thread_id;
+    thrd_t                  thread_handle;
+    JS_sJobQueue            job_queue;
+    struct JS_sThreadPool   *pool;
+} JS_sThread;
+
+void JS_Thread_run(JS_sThread *thread);
+
+
 // Job Queue functions ================================
 void JS_JobQueue_init(JS_sJobQueue *queue) {
     queue->top_idx = 0u;
@@ -46,7 +80,10 @@ void JS_Thread_run(JS_sThread *thread) {
         }
 
         // TODO: send context and other params
-        current_job->job_func(current_job->read_only_data, current_job->read_write_data, thread);
+        current_job->job_func(  current_job->read_only_data, 
+                                current_job->read_write_data, 
+                                thread->pool, 
+                                thread->thread_id   );
 
         if (current_job->parent) {
             assert(false && "Parenting not implemented");
@@ -60,8 +97,6 @@ void JS_ThreadPool_init(JS_sThreadPool *pool, const uint8_t thread_count) {
     pool->threads = (JS_sThread*) malloc(sizeof(JS_sThread) * thread_count);
 
     pool->thread_count = thread_count;
-
-    pool->os_thread_indices  = (thrd_t*) malloc(sizeof(thrd_t) * thread_count);
 
     for(uint8_t i = 0u; i < thread_count; i++) {
         pool->threads[i].thread_id = i;
@@ -97,9 +132,8 @@ static int start_thread(void * data) {
 void JS_ThreadPool_launch(JS_sThreadPool *pool) {
     assert(pool->thread_count > 0u && "Error: launching on empty thread pool");
 
-    thrd_t *os_threads = (thrd_t*) pool->os_thread_indices;
     for(uint8_t i = 1u; i < pool->thread_count; i++) {
-        thrd_create(&os_threads[i], start_thread, &pool->threads[i]);
+        thrd_create(&pool->threads[i].thread_handle, start_thread, &pool->threads[i]);
         //thrd_detach(&os_threads[i]);
     }
 
@@ -109,15 +143,13 @@ void JS_ThreadPool_launch(JS_sThreadPool *pool) {
 
 void JS_ThreadPool_wait_for(JS_sThreadPool *pool) {
     // NOTE: only call this from main thread
-    thrd_t *os_threads = (thrd_t*) pool->os_thread_indices;
     int result;
     for(uint8_t i = 1u; i < pool->thread_count; i++) {
-        assert(thrd_join(os_threads[i], &result) == thrd_success && "Error: join failed");
+        assert(thrd_join(pool->threads[i].thread_handle, &result) == thrd_success && "Error: join failed");
     }
 }
 
 void JS_ThreadPool_clean(JS_sThreadPool *pool) {
     free(pool->threads);
-    free(pool->os_thread_indices);
     pool->thread_count = 0u;
 }
