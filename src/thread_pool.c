@@ -41,13 +41,16 @@ typedef struct JS_sThread {
 void JS_Thread_run(JS_sThread *thread);
 
 
+
+// IMPLEMENTATION
+
 // Job Queue functions ================================
-void JS_JobQueue_init(JS_sJobQueue *queue) {
+inline static void JS_JobQueue_init(JS_sJobQueue *queue) {
     queue->top_idx = 0u;
     queue->bottom_idx = 0u;
 }
 
-bool JS_JobQueue_pop(JS_sJobQueue *queue, JS_sJob **result) {
+inline static bool JS_JobQueue_pop(JS_sJobQueue *queue, JS_sJob **result) {
     if (queue->bottom_idx == queue->top_idx) {
         return false; // Empty queue
     }
@@ -58,18 +61,18 @@ bool JS_JobQueue_pop(JS_sJobQueue *queue, JS_sJob **result) {
     return true;
 }
 
-void JS_JobQueue_enqueue(JS_sJobQueue *queue, const JS_sJob new_job) {
+inline static void JS_JobQueue_enqueue(JS_sJobQueue *queue, const JS_sJob new_job) {
     memcpy(&queue->queue_ring_buffer[queue->top_idx], &new_job, sizeof(JS_sJob));
     queue->top_idx = (queue->top_idx + 1u) % MAX_JOB_COUNT_PER_THREAD;
 }
 
-uint32_t JS_JobQueue_get_size(JS_sJobQueue *queue) {
+inline static uint32_t JS_JobQueue_get_size(JS_sJobQueue *queue) {
     return abs(queue->bottom_idx - queue->top_idx);
 }
 
 // THREAD FUNCTIONS ===================================
 // Thread main loop
-void JS_Thread_run(JS_sThread *thread) {
+inline static void JS_Thread_run(JS_sThread *thread) {
     JS_sJobQueue *thread_job_queue = &thread->job_queue;
 
     // While the Queue is not empty
@@ -145,7 +148,8 @@ void JS_ThreadPool_wait_for(JS_sThreadPool *pool) {
     // NOTE: only call this from main thread
     int result;
     for(uint8_t i = 1u; i < pool->thread_count; i++) {
-        assert(thrd_join(pool->threads[i].thread_handle, &result) == thrd_success && "Error: join failed");
+        int join_result = thrd_join(pool->threads[i].thread_handle, &result);
+        assert(join_result == thrd_success && "Error: join failed");
     }
 }
 

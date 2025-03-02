@@ -30,7 +30,7 @@ static void Job_sum_func(const void* read_only, void* read_write, struct JS_sThr
 
 int main() {
     uint32_t base_values[ARRAY_COUNT];
-    volatile uint32_t results[JOB_COUNT];
+    uint32_t results[JOB_COUNT];
     sJobParams params[JOB_COUNT];
 
     // Prepare the problem

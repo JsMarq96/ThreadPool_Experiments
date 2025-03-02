@@ -21,8 +21,16 @@ endmacro()
 ADD_SOURCE("src/")
 #ADD_SOURCE("src/utils")
 
-if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CLANG_TIME_TRACE)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftime-trace")
+if(CMAKE_BUILD_TYPE MATCHES DEBUG)
+    message("Debug config")
+	if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CLANG_TIME_TRACE)
+		message("Clang time trace enabled!")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftime-trace")
+	endif()
+	set(CMAKE_C_FLAGS "-Wall -Wextra -g")
+else()
+	message("Release config")
+	set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 endif()
 
 find_package(Threads REQUIRED)
@@ -37,6 +45,6 @@ include_directories(${HEADER_FILES} ${SOURCE_FILES})
 target_link_libraries(ThreadPoolExp Threads::Threads tinycthread)
 
 # Parallel build
-add_custom_target(my_parallel_build 
-                      COMMAND ${CMAKE_COMMAND} --build -j ${CMAKE_BUILD_PARALLEL_LEVEL}
-                      WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_custom_target(	my_parallel_build 
+                    COMMAND ${CMAKE_COMMAND} --build -j ${CMAKE_BUILD_PARALLEL_LEVEL}
+                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}	)
