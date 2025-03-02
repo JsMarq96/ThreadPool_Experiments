@@ -53,11 +53,9 @@ int main() {
 
         JS_ThreadPool_submit_job(&job_pool, 
                                 (JS_sJobConfig) {
-                                    .has_parent = false,
                                     .job_func = &Job_sum_func,
                                     .read_only_data = (void*) &params[i],
                                     .read_write_data = (void*) results,
-                                    .parent_job_config = NULL,
                                 });
     }
 

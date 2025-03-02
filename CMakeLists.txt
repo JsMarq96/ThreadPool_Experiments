@@ -47,6 +47,11 @@ else()
 	#endif()
 endif()
 
+# Atomics are still under experimental...
+if (MSVC)
+	add_compile_options(/experimental:c11atomics /wd5040)
+endif()
+
 find_package(Threads REQUIRED)
 
 set(TINYCTHREAD_DISABLE_TESTS ON)
