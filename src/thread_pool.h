@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "threads_include.h"
+
 /**
  * Basic C23 Job System (JS) Thread Pool API using C11 threads or tinyctreads
  * By Juan S. Marquerie (JsMarq96) 16/02/2025
@@ -57,7 +59,7 @@ void JS_Thread_run(JS_sThread *thread);
 typedef struct JS_sThreadPool {
     uint8_t     thread_count;
     JS_sThread  *threads;
-    void        *os_thread_idx;
+    void        *os_thread_indices;
 } JS_sThreadPool;
 
 void JS_ThreadPool_init(JS_sThreadPool *pool, const uint8_t thread_count);

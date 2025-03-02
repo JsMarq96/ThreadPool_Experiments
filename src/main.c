@@ -36,6 +36,9 @@ int main() {
     // Prepare the problem
     for(uint32_t i = 0u; i < ARRAY_COUNT; i++) {
         base_values[i] = 1u;
+        if (i < JOB_COUNT) {
+            results[i] = 0u;
+        }
     }
 
     JS_sThreadPool job_pool;
@@ -64,11 +67,10 @@ int main() {
     uint32_t result = 0u;
 
     for(uint32_t i = 0u; i < JOB_COUNT; i++) {
-        //printf("%d\n", results[i]); <- uncommeting this fixes it :(
         result += results[i];
     }
 
-    printf("Result: %d / %d from %d jobs in %d", result, ARRAY_COUNT, JOB_COUNT, THREAD_COUNT);
+    printf("Result: %d / %d from %d jobs in %d threads\n", result, ARRAY_COUNT, JOB_COUNT, THREAD_COUNT);
 
     JS_ThreadPool_clean(&job_pool);
 

@@ -53,8 +53,6 @@ void JS_Thread_run(JS_sThread *thread) {
             //JS_JobQueue_enqueue(thread_job_queue, current_job->parent);
         }
     }
-
-    printf("End");
 }
 
 // THREAD POOL ======================================
@@ -63,7 +61,7 @@ void JS_ThreadPool_init(JS_sThreadPool *pool, const uint8_t thread_count) {
 
     pool->thread_count = thread_count;
 
-    pool->os_thread_idx  = (thrd_t*) malloc(sizeof(thrd_t) * thread_count);
+    pool->os_thread_indices  = (thrd_t*) malloc(sizeof(thrd_t) * thread_count);
 
     for(uint8_t i = 0u; i < thread_count; i++) {
         pool->threads[i].thread_id = i;
@@ -75,8 +73,8 @@ void JS_ThreadPool_init(JS_sThreadPool *pool, const uint8_t thread_count) {
 void JS_ThreadPool_submit_job(JS_sThreadPool *pool, JS_sJobConfig job_data) {
     JS_sThread *threads = pool->threads;
     // Add jobs in a naive round robbin
-    for(uint32_t i = 0u; i < pool->thread_count; i++) {
-        uint32_t i_next = (i + 1u) % pool->thread_count;
+    for(uint8_t i = 0u; i < pool->thread_count; i++) {
+        uint8_t i_next = (i + 1u) % pool->thread_count;
         if (JS_JobQueue_get_size(&threads[i].job_queue) <= JS_JobQueue_get_size(&threads[i_next].job_queue)) {
             JS_JobQueue_enqueue(&threads[i].job_queue, 
                                 (JS_sJob) {
@@ -90,15 +88,16 @@ void JS_ThreadPool_submit_job(JS_sThreadPool *pool, JS_sJobConfig job_data) {
     }
 }
 
-int start_thread(void * data) {
+static int start_thread(void * data) {
     JS_Thread_run((JS_sThread*) data);
+
     return 0u;
 }
 
 void JS_ThreadPool_launch(JS_sThreadPool *pool) {
-    assert(pool > 0u && "Error: launching on empty thread pool");
+    assert(pool->thread_count > 0u && "Error: launching on empty thread pool");
 
-    thrd_t *os_threads = (thrd_t*) pool->os_thread_idx;
+    thrd_t *os_threads = (thrd_t*) pool->os_thread_indices;
     for(uint8_t i = 1u; i < pool->thread_count; i++) {
         thrd_create(&os_threads[i], start_thread, &pool->threads[i]);
         //thrd_detach(&os_threads[i]);
@@ -110,15 +109,15 @@ void JS_ThreadPool_launch(JS_sThreadPool *pool) {
 
 void JS_ThreadPool_wait_for(JS_sThreadPool *pool) {
     // NOTE: only call this from main thread
-    thrd_t *os_threads = (thrd_t*) pool->os_thread_idx;
+    thrd_t *os_threads = (thrd_t*) pool->os_thread_indices;
     int result;
     for(uint8_t i = 1u; i < pool->thread_count; i++) {
-        assert(thrd_join(&os_threads[i], &result) == 0u);
+        assert(thrd_join(os_threads[i], &result) == thrd_success && "Error: join failed");
     }
 }
 
 void JS_ThreadPool_clean(JS_sThreadPool *pool) {
     free(pool->threads);
-    free(pool->os_thread_idx);
+    free(pool->os_thread_indices);
     pool->thread_count = 0u;
 }
