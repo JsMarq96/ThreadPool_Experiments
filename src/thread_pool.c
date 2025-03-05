@@ -127,6 +127,8 @@ inline void JS_Thread_run(JS_sThread *thread) {
 void JS_ThreadPool_init(JS_sThreadPool *pool, const uint8_t thread_count) {
     pool->threads = (JS_sThread*) malloc(sizeof(JS_sThread) * thread_count);
 
+    assert(pool->threads && "Error allocating the threads on pool init");
+
     pool->thread_count = thread_count;
 
     for(uint8_t i = 0u; i < thread_count; i++) {
@@ -169,6 +171,8 @@ void JS_ThreadPool_submit_jobs_with_parent( JS_sThreadPool *pool,
             break;
         }
     }
+
+    assert(selected_thread != NULL && "Error: all queues are filled!");
 
     // TODO: this is really bad. Maybe a empty array position stack
     uint32_t available_parent_idx = 0u;
