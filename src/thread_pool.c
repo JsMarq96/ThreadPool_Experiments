@@ -43,12 +43,12 @@ typedef struct JS_sJobQueue {
     JS_sJob         queue_ring_buffer[MAX_JOB_COUNT_PER_THREAD];
     int16_t         job_top_idx;
     int16_t         job_bottom_idx;
+    uint16_t        queue_size;
 } JS_sJobQueue;
 
 void JS_JobQueue_init(JS_sJobQueue *queue);
 bool JS_JobQueue_pop(JS_sJobQueue *queue, JS_sJob **result);
 void JS_JobQueue_enqueue(JS_sJobQueue *queue, const JS_sJob new_job);
-uint32_t JS_JobQueue_get_size(JS_sJobQueue *queue);
 
 typedef struct JS_sThread {
     thrd_t                  thread_handle;
@@ -70,6 +70,7 @@ void JS_Thread_run(JS_sThread *thread);
 inline void JS_JobQueue_init(JS_sJobQueue *queue) {
     queue->job_top_idx = 0u;
     queue->job_bottom_idx = 0u;
+    queue->queue_size = 0u;
 }
 
 inline bool JS_JobQueue_pop(JS_sJobQueue *queue, JS_sJob **result) {
@@ -80,16 +81,16 @@ inline bool JS_JobQueue_pop(JS_sJobQueue *queue, JS_sJob **result) {
     *result = &queue->queue_ring_buffer[queue->job_bottom_idx];
     queue->job_bottom_idx = (queue->job_bottom_idx + 1u) % MAX_JOB_COUNT_PER_THREAD;
 
+    queue->queue_size--;
+
     return true;
 }
 
 inline void JS_JobQueue_enqueue(JS_sJobQueue *queue, const JS_sJob new_job) {
     memcpy(&queue->queue_ring_buffer[queue->job_top_idx], &new_job, sizeof(JS_sJob));
     queue->job_top_idx = (queue->job_top_idx + 1u) % MAX_JOB_COUNT_PER_THREAD;
-}
 
-inline uint32_t JS_JobQueue_get_size(JS_sJobQueue *queue) {
-    return abs(queue->job_bottom_idx - queue->job_top_idx);
+    queue->queue_size++;
 }
 
 // THREAD FUNCTIONS ===================================
@@ -99,7 +100,7 @@ inline void JS_Thread_run(JS_sThread *thread) {
 
     // While the Queue is not empty
     JS_sJob *current_job = NULL;
-    while(JS_JobQueue_get_size(thread_job_queue) != 0u) {
+    while(thread_job_queue->queue_size != 0u) {
         if (!JS_JobQueue_pop(thread_job_queue, &current_job)) {
             continue;
         }
@@ -111,7 +112,7 @@ inline void JS_Thread_run(JS_sThread *thread) {
                                 thread->thread_id   );
 
         if (current_job->parent_idx >= 0) {
-            JS_sParentJob *parent_job = &thread->parents_buffer[current_job->parent_idx];
+            JS_sParentJob* parent_job = &thread->parents_buffer[current_job->parent_idx];
             int32_t prev_value = atomic_fetch_sub(&parent_job->dispatch_to_counter, 1u);
 
             if (prev_value == 1u) {
@@ -140,7 +141,7 @@ void JS_ThreadPool_submit_job(JS_sThreadPool *pool, JS_sJobConfig job_data) {
     // Add jobs in a naive round robbin
     for(uint8_t i = 0u; i < pool->thread_count; i++) {
         uint8_t i_next = (i + 1u) % pool->thread_count;
-        if (JS_JobQueue_get_size(&threads[i].job_queue) <= JS_JobQueue_get_size(&threads[i_next].job_queue)) {
+        if (threads[i].job_queue.queue_size <= threads[i_next].job_queue.queue_size) {
             JS_JobQueue_enqueue(&threads[i].job_queue, 
                                 (JS_sJob) {
                                     .job_func = *job_data.job_func,
@@ -163,7 +164,7 @@ void JS_ThreadPool_submit_jobs_with_parent( JS_sThreadPool *pool,
     // Search a thread with a naive round robbin
     for(uint8_t i = 0u; i < pool->thread_count; i++) {
         uint8_t i_next = (i + 1u) % pool->thread_count;
-        if (JS_JobQueue_get_size(&threads[i].job_queue) <= JS_JobQueue_get_size(&threads[i_next].job_queue)) {
+        if (threads[i].job_queue.queue_size <= threads[i_next].job_queue.queue_size) {
             selected_thread = &threads[i];
             break;
         }
@@ -212,10 +213,10 @@ void JS_ThreadPool_launch(JS_sThreadPool *pool) {
 
 void JS_ThreadPool_wait_for(JS_sThreadPool *pool) {
     // NOTE: only call this from main thread
-    int result;
+    int result = 0u;
     for(uint8_t i = 1u; i < pool->thread_count; i++) {
         int join_result = thrd_join(pool->threads[i].thread_handle, &result);
-        assert(join_result == thrd_success && "Error: join failed");
+        assert((join_result == thrd_success) && "Error: join failed");
     }
 }
 
