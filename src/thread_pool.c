@@ -29,16 +29,6 @@ typedef struct JS_sParentJob {
     JS_sJob     job;
 } JS_sParentJob;
 
-static inline void JS_ParentJob_init(JS_sParentJob *parent_job, const int32_t counter, const JS_sJobConfig *job) {
-    atomic_store(&parent_job->dispatch_to_counter, counter);
-    parent_job->job = (JS_sJob){
-        .job_func = *job->job_func,
-        .parent_idx = -1,
-        .read_only_data = job->read_only_data,
-        .read_write_data = job->read_write_data,
-    };
-}
-
 typedef struct JS_sJobQueue {
     JS_sJob         queue_ring_buffer[MAX_JOB_COUNT_PER_THREAD];
     int16_t         job_top_idx;
@@ -74,7 +64,7 @@ inline void JS_JobQueue_init(JS_sJobQueue *queue) {
 }
 
 inline bool JS_JobQueue_pop(JS_sJobQueue *queue, JS_sJob **result) {
-    if (queue->job_bottom_idx == queue->job_top_idx) {
+    if (queue->queue_size == 0u) {
         return false; // Empty queue
     }
 
@@ -112,13 +102,13 @@ inline void JS_Thread_run(JS_sThread *thread) {
                                 thread->thread_id   );
 
         if (current_job->parent_idx >= 0) {
-            JS_sParentJob* parent_job = &thread->parents_buffer[current_job->parent_idx];
-            int32_t prev_value = atomic_fetch_sub(&parent_job->dispatch_to_counter, 1u);
+            // JS_sParentJob* parent_job = &thread->parents_buffer[current_job->parent_idx];
+            // int32_t prev_value = atomic_fetch_sub(&parent_job->dispatch_to_counter, 1);
 
-            if (prev_value == 1u) {
-                JS_JobQueue_enqueue(thread_job_queue, parent_job->job);
-                thread->filled_parents_buffer[current_job->parent_idx] = false;
-            }
+            // if (prev_value == 1u) {
+            //     JS_JobQueue_enqueue(thread_job_queue, parent_job->job);
+            //     thread->filled_parents_buffer[current_job->parent_idx] = false;
+            // }
         }
     }
 }
@@ -182,8 +172,17 @@ void JS_ThreadPool_submit_jobs_with_parent( JS_sThreadPool *pool,
         }
     }
 
-    JS_ParentJob_init(&selected_thread->parents_buffer[available_parent_idx], child_job_count, &parent_job_data);
-    selected_thread->filled_parents_buffer[available_parent_idx] = false;
+    JS_sParentJob *parent_job = &selected_thread->parents_buffer[available_parent_idx];
+    selected_thread->filled_parents_buffer[available_parent_idx] = true;
+
+    atomic_init(&parent_job->dispatch_to_counter, 1);
+
+    parent_job->job = (JS_sJob){
+        .job_func = parent_job_data.job_func,
+        .parent_idx = -1,
+        .read_only_data = parent_job_data.read_only_data,
+        .read_write_data = parent_job_data.read_write_data,
+    };
 
     // Add the jobs to the queue, with the parent
     for(uint32_t i = 0u; i < child_job_count; i++) {

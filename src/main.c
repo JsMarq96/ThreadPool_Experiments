@@ -25,15 +25,15 @@ static void Job_sum_func(const void* read_only, void* read_write, struct JS_sThr
         count += values[starting_idx + i];
     }
 
-    ((uint32_t*)read_write)[params->write_to_idx] = count;
+    ((uint32_t*)read_write)[params->write_to_idx] += count;
 }
 
-int main() {
+int main(void) {
     uint32_t base_values[ARRAY_COUNT];
     uint32_t results[JOB_COUNT];
     sJobParams params[JOB_COUNT];
 
-    // Prepare the problem
+    // Prepare the problem first problem
     for(uint32_t i = 0u; i < ARRAY_COUNT; i++) {
         base_values[i] = 1u;
         if (i < JOB_COUNT) {
@@ -68,7 +68,50 @@ int main() {
         result += results[i];
     }
 
-    printf("Result: %d / %d from %d jobs in %d threads\n", result, ARRAY_COUNT, JOB_COUNT, THREAD_COUNT);
+    printf("Test 1: Result: %d / %d from %d jobs in %d threads\n", result, ARRAY_COUNT, JOB_COUNT, THREAD_COUNT);
+
+    // Prepare the second problem
+    for(uint32_t i = 0u; i < JOB_COUNT; i++) {
+        results[i] = 0u;
+    }
+
+    for(uint32_t i = 0u; i < JOB_COUNT; i++) {
+        params[i] = (sJobParams){
+            .write_to_idx = i,
+            .startin_idx = i * 1000u,
+            .values = base_values,
+        };
+
+        JS_ThreadPool_submit_jobs_with_parent(  &job_pool, 
+                                                1u,
+                                                &(JS_sJobConfig) {
+                                                    .job_func = &Job_sum_func,
+                                                    .read_only_data = (void*) &params[i],
+                                                    .read_write_data = (void*) results,
+                                                }, (JS_sJobConfig) {
+                                                    .job_func = &Job_sum_func,
+                                                    .read_only_data = (void*) &params[i],
+                                                    .read_write_data = (void*) results,
+                                                });
+        // JS_ThreadPool_submit_job(&job_pool, 
+        //                         (JS_sJobConfig) {
+        //                             .job_func = &Job_sum_func,
+        //                             .read_only_data = (void*) &params[i],
+        //                             .read_write_data = (void*) results,
+        //                         });
+    }
+
+    JS_ThreadPool_launch(&job_pool);
+    JS_ThreadPool_wait_for(&job_pool);
+
+    result = 0u;
+
+    for(uint32_t i = 0u; i < JOB_COUNT; i++) {
+        result += results[i];
+    }
+
+    printf("Test 2: Result: %d / %d from %d jobs in %d threads\n", result, ARRAY_COUNT * 2u, JOB_COUNT, THREAD_COUNT);
+
 
     JS_ThreadPool_clean(&job_pool);
 
