@@ -25,8 +25,8 @@ typedef struct JS_sJob {
 } JS_sJob;
 
 typedef struct JS_sParentJob {
-    atomic_int  dispatch_to_counter;
-    JS_sJob     job;
+    atomic_int      dispatch_to_counter;
+    JS_sJob         job;
 } JS_sParentJob;
 
 typedef struct JS_sJobQueue {
@@ -175,7 +175,8 @@ void JS_ThreadPool_submit_jobs_with_parent( JS_sThreadPool *pool,
     JS_sParentJob *parent_job = &selected_thread->parents_buffer[available_parent_idx];
     selected_thread->filled_parents_buffer[available_parent_idx] = true;
 
-    atomic_init(&parent_job->dispatch_to_counter, 1);
+    //parent_job->dispatch_to_counter = 1;
+    //atomic_init(&parent_job->dispatch_to_counter, 1);
 
     parent_job->job = (JS_sJob){
         .job_func = parent_job_data.job_func,

@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_BUILD_PARALLEL_LEVEL 6)
 set(CMAKE_C_STANDARD 23)
+set(CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE "x86")
 
 option(CLANG_TIME_TRACE "Enable clang profiling." ON)
 
@@ -40,7 +41,21 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -v")
 else()
 	message("Release config")
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ")
+	# set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+	# set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+	# set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+	#set(CMAKE_STATIC_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+	#add_compile_options("-fsanitize=address")
+	#link_libraries("-fsanitize=address")
+	#add_definitions(-fsanitize=address -g3 -fno-omit-frame-pointer)
+
+	message(STATUS "Compiling with Address Sanitizer (ASAN) support")
+    add_definitions(-fsanitize=address -fno-omit-frame-pointer -g -fno-optimize-sibling-calls -O1)
+    set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+
+	# set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fsanitize=address -fno-omit-frame-pointer")
+	# set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -fsanitize=address -fno-omit-frame-pointer")
 
 	#if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
 	#	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer")
@@ -58,6 +73,7 @@ set(TINYCTHREAD_DISABLE_TESTS ON)
 add_subdirectory(libraries/tinycthread)
 
 add_executable(ThreadPoolExp ${HEADER_FILES} ${SOURCE_FILES})
+
 set_target_properties(ThreadPoolExp PROPERTIES OUTPUT_NAME "ThreadPoolExp")
 
 include_directories(${HEADER_FILES} ${SOURCE_FILES})

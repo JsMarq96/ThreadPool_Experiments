@@ -76,11 +76,7 @@ int main(void) {
     }
 
     for(uint32_t i = 0u; i < JOB_COUNT; i++) {
-        params[i] = (sJobParams){
-            .write_to_idx = i,
-            .startin_idx = i * 1000u,
-            .values = base_values,
-        };
+        // Reuse the job config of teh prev threads
 
         JS_ThreadPool_submit_jobs_with_parent(  &job_pool, 
                                                 1u,
