@@ -7,7 +7,7 @@
 #include "thread_pool.h"
 
 // TODO: get this programatically
-#define THREAD_COUNT 10u
+#define THREAD_COUNT 8u
 #define TO_DO_PER_JOB 2000u
 #define ARRAY_COUNT (THREAD_COUNT * TO_DO_PER_JOB * 100u)
 #define JOB_COUNT (ARRAY_COUNT / TO_DO_PER_JOB)
@@ -33,23 +33,23 @@ static void Job_sum_func(const void* read_only, void* read_write, struct JS_sThr
     const uint32_t *values = params->values;
     const uint32_t starting_idx = params->startin_idx;
 
-    uint32_t count = 0u;
+    uint64_t count = 0u;
     for(uint32_t i = 0u; i < TO_DO_PER_JOB; i++) {
-        count += values[starting_idx + i];
+        const uint64_t tmp = values[starting_idx + i];
+        count +=  tmp * tmp;
     }
 
-    ((uint32_t*)read_write)[params->write_to_idx] += count;
-    //thrd_sleep(&(struct timespec){.tv_sec=0.0001}, NULL);
+    ((uint64_t*)read_write)[params->write_to_idx] += count;
 }
 
 int main(void) {
     uint32_t base_values[ARRAY_COUNT];
-    uint32_t results[JOB_COUNT];
+    uint64_t results[JOB_COUNT];
     sJobParams params[JOB_COUNT];
 
     // Prepare the problem first problem
     for(uint32_t i = 0u; i < ARRAY_COUNT; i++) {
-        base_values[i] = 1u;
+        base_values[i] = i;
         if (i < JOB_COUNT) {
             results[i] = 0u;
         }
@@ -77,9 +77,9 @@ int main(void) {
                 JS_ThreadPool_launch(&job_pool);
                 JS_ThreadPool_wait_for(&job_pool));
 
-    uint32_t result = 0u;
+    uint64_t result = 0u;
 
-    for(uint32_t i = 0u; i < JOB_COUNT; i++) {
+    for(uint64_t i = 0u; i < JOB_COUNT; i++) {
         result += results[i];
     }
 

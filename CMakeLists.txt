@@ -7,6 +7,7 @@ set(CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE "x86")
 
 option(CLANG_TIME_TRACE "Enable clang profiling." ON)
 option(CLANG_ASAN "Enable Adress Sanitizer." ON)
+option(CLANG_ASAN_RELEASE "Force Adress Sanitizer on Release." OFF)
 
 project(ThreadPoolExp)
 
@@ -25,6 +26,7 @@ ADD_SOURCE("src/")
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     message(STATUS "Debug config")
+	
 	if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND CLANG_TIME_TRACE)
 		if (CLANG_TIME_TRACE)
 			message(STATUS "Clang time trace enabled!")
@@ -35,15 +37,21 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
 	endif()
 
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -v")
+
+	if(CLANG_ASAN)
+		message(STATUS "Compiling with Address Sanitizer")
+		add_definitions(-fsanitize=address -fno-omit-frame-pointer -g -fno-optimize-sibling-calls)
+		set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+	endif()
 else()
 	message(STATUS "Release config")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
-endif()
 
-if(CLANG_ASAN)
-	message(STATUS "Compiling with Address Sanitizer")
-    add_definitions(-fsanitize=address -fno-omit-frame-pointer -g -fno-optimize-sibling-calls -O1)
-    set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+	if(CLANG_ASAN_RELEASE)
+		message(STATUS "Compiling with Address Sanitizer")
+		add_definitions(-fsanitize=address -fno-omit-frame-pointer -g -fno-optimize-sibling-calls)
+		set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+	endif()
 endif()
 
 # Atomics are still under experimental...
