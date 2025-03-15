@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdbool.h>
 #include <stdatomic.h>
 
@@ -10,6 +11,8 @@
 
 #define MAX_JOB_COUNT_PER_THREAD 2000u
 #define MAX_PARENT_JOB_COUNT_PER_THREAD 2000u
+
+#define THREAD_SUCCESS 1
 
 // Forward declarations =================================
 struct JS_sJob;
@@ -96,19 +99,19 @@ inline void JS_Thread_run(JS_sThread *thread) {
         }
 
         // TODO: send context and other params
-        current_job->job_func(  current_job->read_only_data, 
-                                current_job->read_write_data, 
-                                thread->pool, 
+        current_job->job_func(  current_job->read_only_data,
+                                current_job->read_write_data,
+                                thread->pool,
                                 thread->thread_id   );
 
         if (current_job->parent_idx >= 0) {
-            // JS_sParentJob* parent_job = &thread->parents_buffer[current_job->parent_idx];
-            // int32_t prev_value = atomic_fetch_sub(&parent_job->dispatch_to_counter, 1);
+            JS_sParentJob* parent_job = &thread->parents_buffer[current_job->parent_idx];
+            int32_t prev_value = atomic_fetch_sub(&parent_job->dispatch_to_counter, 1);
 
-            // if (prev_value == 1u) {
-            //     JS_JobQueue_enqueue(thread_job_queue, parent_job->job);
-            //     thread->filled_parents_buffer[current_job->parent_idx] = false;
-            // }
+            if (prev_value == 1u) {
+                JS_JobQueue_enqueue(thread_job_queue, parent_job->job);
+                thread->filled_parents_buffer[current_job->parent_idx] = false;
+            }
         }
     }
 }
@@ -134,7 +137,7 @@ void JS_ThreadPool_submit_job(JS_sThreadPool *pool, JS_sJobConfig job_data) {
     for(uint8_t i = 0u; i < pool->thread_count; i++) {
         uint8_t i_next = (i + 1u) % pool->thread_count;
         if (threads[i].job_queue.queue_size <= threads[i_next].job_queue.queue_size) {
-            JS_JobQueue_enqueue(&threads[i].job_queue, 
+            JS_JobQueue_enqueue(&threads[i].job_queue,
                                 (JS_sJob) {
                                     .job_func = *job_data.job_func,
                                     .parent_idx = -1,
@@ -147,9 +150,9 @@ void JS_ThreadPool_submit_job(JS_sThreadPool *pool, JS_sJobConfig job_data) {
     }
 }
 
-void JS_ThreadPool_submit_jobs_with_parent( JS_sThreadPool *pool, 
-                                            const uint32_t child_job_count, 
-                                            JS_sJobConfig *child_jobs_data, 
+void JS_ThreadPool_submit_jobs_with_parent( JS_sThreadPool *pool,
+                                            const uint32_t child_job_count,
+                                            JS_sJobConfig *child_jobs_data,
                                             JS_sJobConfig parent_job_data   ) {
     JS_sThread *threads = pool->threads;
     JS_sThread *selected_thread = NULL;
@@ -175,8 +178,7 @@ void JS_ThreadPool_submit_jobs_with_parent( JS_sThreadPool *pool,
     JS_sParentJob *parent_job = &selected_thread->parents_buffer[available_parent_idx];
     selected_thread->filled_parents_buffer[available_parent_idx] = true;
 
-    //parent_job->dispatch_to_counter = 1;
-    //atomic_init(&parent_job->dispatch_to_counter, 1);
+    atomic_init(&parent_job->dispatch_to_counter, 1);
 
     parent_job->job = (JS_sJob){
         .job_func = parent_job_data.job_func,
@@ -188,7 +190,7 @@ void JS_ThreadPool_submit_jobs_with_parent( JS_sThreadPool *pool,
     // Add the jobs to the queue, with the parent
     for(uint32_t i = 0u; i < child_job_count; i++) {
         JS_sJobConfig *child_job = &child_jobs_data[i];
-        JS_JobQueue_enqueue(&selected_thread->job_queue, 
+        JS_JobQueue_enqueue(&selected_thread->job_queue,
                             (JS_sJob) {
                                 .job_func = *child_job->job_func,
                                 .parent_idx = available_parent_idx,
@@ -219,8 +221,8 @@ void JS_ThreadPool_wait_for(JS_sThreadPool *pool) {
     // NOTE: only call this from main thread
     int result = 0u;
     for(uint8_t i = 1u; i < pool->thread_count; i++) {
-        int join_result = thrd_join(pool->threads[i].thread_handle, &result);
-        assert((join_result == thrd_success) && "Error: join failed");
+        int join_result = thrd_join(pool->threads[i].thread_handle, NULL);
+        assert((join_result == THREAD_SUCCESS) && "Error: join failed");
     }
 }
 
