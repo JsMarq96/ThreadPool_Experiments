@@ -12,15 +12,27 @@
 #define ARRAY_COUNT (THREAD_COUNT * TO_DO_PER_JOB * 100u)
 #define JOB_COUNT (ARRAY_COUNT / TO_DO_PER_JOB)
 
-#define GET_DOUBLE_MS_FROM_TIME(time_struct) ((double) time_struct.tv_sec * 1e9 + time_struct.tv_nsec)
-#define TIME_BLOCK(label, block_to_eval) {\
-    struct timespec begin_time, end_time;\
-    clock_gettime(CLOCK_REALTIME, &begin_time);\
-    block_to_eval;\
-    clock_gettime(CLOCK_REALTIME, &end_time);\
-    double f = GET_DOUBLE_MS_FROM_TIME(end_time) - GET_DOUBLE_MS_FROM_TIME(begin_time); \
-    printf("%s: %f ms\n",label, f/1000000); \
-}
+#ifdef _WIN32
+    #define TIME_BLOCK(label, block_to_eval) {\
+        uint64_t counter_freq = 0u, start_time = 0u, end_time = 0u;\
+        QueryPerformanceFrequency(&counter_freq);\
+        QueryPerformanceCounter(&start_time);\
+        block_to_eval;\
+        QueryPerformanceCounter(&end_time);\
+        printf("%s: %I64d ms\n",label, (end_time-start_time) / counter_freq);\
+    }
+#else //  _WIN32
+    #define GET_DOUBLE_MS_FROM_TIME(time_struct) ((double) time_struct.tv_sec * 1e9 + time_struct.tv_nsec)
+
+    #define TIME_BLOCK(label, block_to_eval) {\
+        struct timespec begin_time, end_time;\
+        clock_gettime(CLOCK_REALTIME, &begin_time);\
+        block_to_eval;\
+        clock_gettime(CLOCK_REALTIME, &end_time);\
+        double f = GET_DOUBLE_MS_FROM_TIME(end_time) - GET_DOUBLE_MS_FROM_TIME(begin_time); \
+        printf("%s: %f ms\n",label, f/1000000); \
+    }
+#endif //  _WIN32
 
 typedef struct sJobParams {
     uint32_t write_to_idx;
@@ -42,11 +54,11 @@ static void Job_sum_func(const void* read_only, void* read_write, struct JS_sThr
     ((uint64_t*)read_write)[params->write_to_idx] += count;
 }
 
-int main(void) {
-    uint32_t base_values[ARRAY_COUNT];
-    uint64_t results[JOB_COUNT];
-    sJobParams params[JOB_COUNT];
+uint32_t base_values[ARRAY_COUNT];
+uint64_t results[JOB_COUNT];
+sJobParams params[JOB_COUNT];
 
+int main(void) {
     // Prepare the problem first problem
     for(uint32_t i = 0u; i < ARRAY_COUNT; i++) {
         base_values[i] = i;
@@ -75,11 +87,11 @@ int main(void) {
 
     TIME_BLOCK( "Test 1 multithreaded",
                 JS_ThreadPool_launch(&job_pool);
-                JS_ThreadPool_wait_for(&job_pool));
+                JS_ThreadPool_wait_for(&job_pool););
 
-    uint64_t result = 0u;
+    uint32_t result = 0u;
 
-    for(uint64_t i = 0u; i < JOB_COUNT; i++) {
+    for(uint32_t i = 0u; i < JOB_COUNT; i++) {
         result += results[i];
     }
 
@@ -114,7 +126,7 @@ int main(void) {
 
     TIME_BLOCK( "Test 2 multithreaded",
                 JS_ThreadPool_launch(&job_pool);
-                JS_ThreadPool_wait_for(&job_pool)
+                JS_ThreadPool_wait_for(&job_pool);
     );
 
     result = 0u;
