@@ -9,7 +9,7 @@
 
 #include "threads_include.h"
 
-#define MAX_JOB_COUNT_PER_THREAD 2000u
+#define MAX_JOB_COUNT_PER_THREAD 4000u
 #define MAX_PARENT_JOB_COUNT_PER_THREAD 2000u
 
 #define THREAD_SUCCESS 1
@@ -108,7 +108,7 @@ inline void JS_Thread_run(JS_sThread *thread) {
             JS_sParentJob* parent_job = &thread->parents_buffer[current_job->parent_idx];
             int32_t prev_value = atomic_fetch_sub(&parent_job->dispatch_to_counter, 1);
 
-            if (prev_value == 1u) {
+            if (prev_value == 1) {
                 JS_JobQueue_enqueue(thread_job_queue, parent_job->job);
                 thread->filled_parents_buffer[current_job->parent_idx] = false;
             }
@@ -178,7 +178,7 @@ void JS_ThreadPool_submit_jobs_with_parent( JS_sThreadPool *pool,
     JS_sParentJob *parent_job = &selected_thread->parents_buffer[available_parent_idx];
     selected_thread->filled_parents_buffer[available_parent_idx] = true;
 
-    atomic_init(&parent_job->dispatch_to_counter, 1);
+    atomic_init(&parent_job->dispatch_to_counter, child_job_count);
 
     parent_job->job = (JS_sJob){
         .job_func = parent_job_data.job_func,

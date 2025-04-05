@@ -9,17 +9,17 @@
 // TODO: get this programatically
 #define THREAD_COUNT 8u
 #define TO_DO_PER_JOB 2000u
-#define ARRAY_COUNT (THREAD_COUNT * TO_DO_PER_JOB * 100u)
+#define ARRAY_COUNT (10u * TO_DO_PER_JOB * 100u)
 #define JOB_COUNT (ARRAY_COUNT / TO_DO_PER_JOB)
 
 #ifdef _WIN32
     #define TIME_BLOCK(label, block_to_eval) {\
-        uint64_t counter_freq = 0u, start_time = 0u, end_time = 0u;\
+        LARGE_INTEGER counter_freq, start_time, end_time;\
         QueryPerformanceFrequency(&counter_freq);\
         QueryPerformanceCounter(&start_time);\
         block_to_eval;\
         QueryPerformanceCounter(&end_time);\
-        printf("%s: %I64d ms\n",label, (end_time-start_time) / counter_freq);\
+        printf("%s: %f ms\n",label, (end_time.QuadPart-start_time.QuadPart) / ((double) counter_freq.QuadPart/1000.0f));\
     }
 #else //  _WIN32
     #define GET_DOUBLE_MS_FROM_TIME(time_struct) ((double) time_struct.tv_sec * 1e9 + time_struct.tv_nsec)
@@ -34,115 +34,84 @@
     }
 #endif //  _WIN32
 
+#define MATRIX_SIZE 1024u
+
 typedef struct sJobParams {
-    uint32_t write_to_idx;
-    uint32_t startin_idx;
-    uint32_t *values;
+    uint32_t row_idx;
 } sJobParams;
 
-static void Job_sum_func(const void* read_only, void* read_write, struct JS_sThreadPool* pool, const uint8_t thread_id) {
-    const sJobParams *params = read_only;
-    const uint32_t *values = params->values;
-    const uint32_t starting_idx = params->startin_idx;
+uint32_t matrix_to_sum[MATRIX_SIZE * MATRIX_SIZE];
+uint64_t tmp_values[MATRIX_SIZE];
+uint64_t resuling_values = 0u;
+sJobParams params[MATRIX_SIZE];
+
+static void Job_sum_mat(const void* read_only, void* read_write, struct JS_sThreadPool* pool, const uint8_t thread_id) {
+    const uint32_t row_idx = ((sJobParams*) read_only)->row_idx;
 
     uint64_t count = 0u;
-    for(uint32_t i = 0u; i < TO_DO_PER_JOB; i++) {
-        const uint64_t tmp = values[starting_idx + i];
-        count +=  tmp * tmp;
+    for(uint32_t i = 0u; i < MATRIX_SIZE; i++) {
+        count += matrix_to_sum[i + row_idx * MATRIX_SIZE];
     }
 
-    ((uint64_t*)read_write)[params->write_to_idx] += count;
+    tmp_values[row_idx] = count;
 }
 
-uint32_t base_values[ARRAY_COUNT];
-uint64_t results[JOB_COUNT];
-sJobParams params[JOB_COUNT];
+static void Job_sum_mat2(const void* read_only, void* read_write, struct JS_sThreadPool* pool, const uint8_t thread_id) {
+    uint64_t count = 0u;
+    for(uint32_t i = 0u; i < MATRIX_SIZE; i++) {
+        count += tmp_values[i];
+    }
+
+    resuling_values = count;
+}
+
+
 
 int main(void) {
     // Prepare the problem first problem
-    for(uint32_t i = 0u; i < ARRAY_COUNT; i++) {
-        base_values[i] = i;
-        if (i < JOB_COUNT) {
-            results[i] = 0u;
-        }
+    for(uint32_t i = 0u; i < (MATRIX_SIZE * MATRIX_SIZE); i++) {
+       matrix_to_sum[i] = 1u;
     }
 
     JS_sThreadPool job_pool;
     JS_ThreadPool_init(&job_pool, THREAD_COUNT);
 
-    for(uint32_t i = 0u; i < JOB_COUNT; i++) {
+    JS_sJobConfig child_jobs_config[MATRIX_SIZE] = {};
+
+    for(uint32_t i = 0u; i < MATRIX_SIZE; i++) {
         params[i] = (sJobParams){
-            .write_to_idx = i,
-            .startin_idx = i * TO_DO_PER_JOB,
-            .values = base_values,
+            .row_idx = i,
         };
 
-        JS_ThreadPool_submit_job(&job_pool, 
-                                (JS_sJobConfig) {
-                                    .job_func = &Job_sum_func,
+        child_jobs_config[i] = (JS_sJobConfig) {
+                                    .job_func = &Job_sum_mat,
                                     .read_only_data = (void*) &params[i],
-                                    .read_write_data = (void*) results,
-                                });
+                                    .read_write_data = (void*) NULL,
+                                };
     }
+
+    JS_ThreadPool_submit_jobs_with_parent(  &job_pool, 
+                                            MATRIX_SIZE, 
+                                            child_jobs_config, 
+                                            (JS_sJobConfig) {
+                                                .job_func = &Job_sum_mat2,
+                                                .read_only_data = (void*) NULL,
+                                                .read_write_data = (void*) NULL,
+                                            });
 
     TIME_BLOCK( "Test 1 multithreaded",
                 JS_ThreadPool_launch(&job_pool);
                 JS_ThreadPool_wait_for(&job_pool););
 
-    uint32_t result = 0u;
+    printf("Result: %u\n", resuling_values);
 
-    for(uint32_t i = 0u; i < JOB_COUNT; i++) {
-        result += results[i];
-    }
-
-    TIME_BLOCK( "Test 1 secuential",
-         for(uint32_t i = 0u; i < JOB_COUNT; i++) {   
-            Job_sum_func(&params[i], results, NULL, 0);
-        }
-    );
-
-    printf("Test 1: Result: %d / %d from %d jobs in %d threads\n", result, ARRAY_COUNT, JOB_COUNT, THREAD_COUNT);
-
-    // Prepare the second problem
-    for(uint32_t i = 0u; i < JOB_COUNT; i++) {
-        results[i] = 0u;
-    }
-
-    for(uint32_t i = 0u; i < JOB_COUNT; i++) {
-        // Reuse the job config of teh prev threads
-
-        JS_ThreadPool_submit_jobs_with_parent(  &job_pool, 
-                                                1u,
-                                                &(JS_sJobConfig) {
-                                                    .job_func = &Job_sum_func,
-                                                    .read_only_data = (void*) &params[i],
-                                                    .read_write_data = (void*) results,
-                                                }, (JS_sJobConfig) {
-                                                    .job_func = &Job_sum_func,
-                                                    .read_only_data = (void*) &params[i],
-                                                    .read_write_data = (void*) results,
-                                                });
-    }
-
-    TIME_BLOCK( "Test 2 multithreaded",
-                JS_ThreadPool_launch(&job_pool);
-                JS_ThreadPool_wait_for(&job_pool);
-    );
-
-    result = 0u;
-
-    for(uint32_t i = 0u; i < JOB_COUNT; i++) {
-        result += results[i];
-    }
-
-    printf("Test 2: Result: %d / %d from %d jobs in %d threads\n", result, ARRAY_COUNT * 2u, JOB_COUNT, THREAD_COUNT);
-
-    TIME_BLOCK( "Test 2 secuential",
-        for(uint32_t i = 0u; i < JOB_COUNT; i++) {
-            Job_sum_func(&params[i], results, NULL, 0);
-            Job_sum_func(&params[i], results, NULL, 0);
-        }
-    );
+    uint64_t sum = 0u;
+    TIME_BLOCK( "Test 2 singlethreaded",
+                for(uint32_t i = 0u; i < (MATRIX_SIZE * MATRIX_SIZE); i++) {
+                    sum += matrix_to_sum[i];
+                });
+    
+    printf("Result: %u\n", sum);
 
     JS_ThreadPool_clean(&job_pool);
 
