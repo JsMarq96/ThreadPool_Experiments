@@ -6,12 +6,6 @@
 #include "threads_include.h"
 #include "thread_pool.h"
 
-// TODO: get this programatically
-#define THREAD_COUNT 8u
-#define TO_DO_PER_JOB 2000u
-#define ARRAY_COUNT (10u * TO_DO_PER_JOB * 100u)
-#define JOB_COUNT (ARRAY_COUNT / TO_DO_PER_JOB)
-
 #ifdef _WIN32
     #define TIME_BLOCK(label, block_to_eval) {\
         LARGE_INTEGER counter_freq, start_time, end_time;\
@@ -34,23 +28,28 @@
     }
 #endif //  _WIN32
 
-#define MATRIX_SIZE 1024u
+// TODO: get this programatically
+#define THREAD_COUNT 8u
+
+#define MATRIX_SIZE_W 2005u
+#define MATRIX_SIZE_H (MATRIX_SIZE_W * 3u)
+
 
 typedef struct sJobParams {
     uint32_t row_idx;
 } sJobParams;
 
-uint32_t matrix_to_sum[MATRIX_SIZE * MATRIX_SIZE];
-uint64_t tmp_values[MATRIX_SIZE];
+uint32_t matrix_to_sum[MATRIX_SIZE_W * MATRIX_SIZE_H];
+uint64_t tmp_values[MATRIX_SIZE_W];
 uint64_t resuling_values = 0u;
-sJobParams params[MATRIX_SIZE];
+sJobParams params[MATRIX_SIZE_W];
 
 static void Job_sum_mat(const void* read_only, void* read_write, struct JS_sThreadPool* pool, const uint8_t thread_id) {
     const uint32_t row_idx = ((sJobParams*) read_only)->row_idx;
 
     uint64_t count = 0u;
-    for(uint32_t i = 0u; i < MATRIX_SIZE; i++) {
-        count += matrix_to_sum[i + row_idx * MATRIX_SIZE];
+    for(uint32_t i = 0u; i < MATRIX_SIZE_H; i++) {
+        count += matrix_to_sum[i + row_idx * MATRIX_SIZE_H];
     }
 
     tmp_values[row_idx] = count;
@@ -58,7 +57,7 @@ static void Job_sum_mat(const void* read_only, void* read_write, struct JS_sThre
 
 static void Job_sum_mat2(const void* read_only, void* read_write, struct JS_sThreadPool* pool, const uint8_t thread_id) {
     uint64_t count = 0u;
-    for(uint32_t i = 0u; i < MATRIX_SIZE; i++) {
+    for(uint32_t i = 0u; i < MATRIX_SIZE_W; i++) {
         count += tmp_values[i];
     }
 
@@ -69,16 +68,16 @@ static void Job_sum_mat2(const void* read_only, void* read_write, struct JS_sThr
 
 int main(void) {
     // Prepare the problem first problem
-    for(uint32_t i = 0u; i < (MATRIX_SIZE * MATRIX_SIZE); i++) {
+    for(uint32_t i = 0u; i < (MATRIX_SIZE_W * MATRIX_SIZE_H); i++) {
        matrix_to_sum[i] = 1u;
     }
 
     JS_sThreadPool job_pool;
     JS_ThreadPool_init(&job_pool, THREAD_COUNT);
 
-    JS_sJobConfig child_jobs_config[MATRIX_SIZE] = {};
+    JS_sJobConfig child_jobs_config[MATRIX_SIZE_W] = {};
 
-    for(uint32_t i = 0u; i < MATRIX_SIZE; i++) {
+    for(uint32_t i = 0u; i < MATRIX_SIZE_W; i++) {
         params[i] = (sJobParams){
             .row_idx = i,
         };
@@ -90,16 +89,15 @@ int main(void) {
                                 };
     }
 
-    JS_ThreadPool_submit_jobs_with_parent(  &job_pool, 
-                                            MATRIX_SIZE, 
-                                            child_jobs_config, 
-                                            (JS_sJobConfig) {
-                                                .job_func = &Job_sum_mat2,
-                                                .read_only_data = (void*) NULL,
-                                                .read_write_data = (void*) NULL,
-                                            });
-
     TIME_BLOCK( "Test 1 multithreaded",
+                JS_ThreadPool_submit_jobs_with_parent(  &job_pool, 
+                                                        MATRIX_SIZE_W, 
+                                                        child_jobs_config, 
+                                                        (JS_sJobConfig) {
+                                                            .job_func = &Job_sum_mat2,
+                                                            .read_only_data = (void*) NULL,
+                                                            .read_write_data = (void*) NULL,
+                                                        });
                 JS_ThreadPool_launch(&job_pool);
                 JS_ThreadPool_wait_for(&job_pool););
 
@@ -107,7 +105,7 @@ int main(void) {
 
     uint64_t sum = 0u;
     TIME_BLOCK( "Test 2 singlethreaded",
-                for(uint32_t i = 0u; i < (MATRIX_SIZE * MATRIX_SIZE); i++) {
+                for(uint32_t i = 0u; i < (MATRIX_SIZE_W * MATRIX_SIZE_H); i++) {
                     sum += matrix_to_sum[i];
                 });
     
