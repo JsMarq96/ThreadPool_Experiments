@@ -31,7 +31,7 @@
 // TODO: get this programatically
 #define THREAD_COUNT 8u
 
-#define MATRIX_SIZE_W 2005u
+#define MATRIX_SIZE_W 3005u
 #define MATRIX_SIZE_H (MATRIX_SIZE_W * 3u)
 
 

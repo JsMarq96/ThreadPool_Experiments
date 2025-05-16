@@ -114,8 +114,6 @@ inline void JS_Thread_run(JS_sThread *thread, JS_sThreadPool* thread_pool) {
                                                         .read_only_data = parent_pool->parents_config[parent_idx].read_only_data,
                                                         .read_write_data = parent_pool->parents_config[parent_idx].read_write_data,
                                                     });
-                // JS_ThreadPool_submit_job(thread_pool, parent_pool->parents_config[parent_idx]);
-                //                         printf("%d\n", prev_value);
 
                 parent_pool->filled_parents_buffer[parent_idx] = false;
             }
